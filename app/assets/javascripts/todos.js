@@ -1,6 +1,26 @@
 function toggleDone() {
-    $(this).parent().parent().toggleClass("success");
-    updateCounters();
+  var checkbox = this;
+  var tableRow = $(this).parent().parent();
+
+  var todoId = tableRow.data('id');
+  var isCompleted = !tableRow.hasClass("success");
+
+  $.ajax({
+    type: "PUT",
+    url: "/todos/" + todoId + ".json",
+    data: JSON.stringify({
+      todo: { completed: isCompleted }
+    }),
+    contentType: "application/json",
+    dataType: "json"})
+
+    .done(function(data) {
+      console.log(data);
+
+      tableRow.toggleClass("success", data.completed);
+
+      updateCounters();
+    });
 }
 
 function updateCounters() {
@@ -9,58 +29,93 @@ function updateCounters() {
     $("#todo-count").html($(".todo").size() - $(".success").size());
 }
 
-function nextTodoId() {
-    return $(".todo").size() + 1;
-}
-
 function createTodo(title) {
-    var checkboxId = "todo-" + nextTodoId();
+  var newTodo = { title: title, completed: false };
+
+  $.ajax({
+    type: "POST",
+    url: "/todos.json",
+    data: JSON.stringify({
+      todo: newTodo
+    }),
+    contentType: "application/json",
+    dataType: "json"
+  })
+  .done(function(data) {
+    console.log(data);
+
+    var checkboxId = data.id;
 
     var label = $('<label></label>')
-        .attr('for', checkboxId)
-        .html(title);
+      .attr('for', checkboxId)
+      .html(title);
 
     var checkbox = $('<input type="checkbox" value="1" />')
-        .attr('id', checkboxId)
-        .bind('change', toggleDone);
+      .attr('id', checkboxId)
+      .bind('change', toggleDone);
 
     var tableRow = $('<tr class="todo"></td>')
-        .append($('<td>').append(checkbox))
-        .append($('<td>').append(label));
+      .attr('data-id', checkboxId)
+      .append($('<td>').append(checkbox))
+      .append($('<td>').append(label));
 
-    $("#todoList").append( tableRow );
+    $("#todoList").append(tableRow);
 
     updateCounters();
+  })
 
-    function createTodo(title) {
-        // ...
-        updateCounters();
+  .fail(function(error) {
+    console.log(error)
+    error_message = error.responseJSON.title[0];
+    showError(error_message);
+  });
+}
 
-        var newTodo = { title: title, completed: false };
+function showError(message) {
+  $("#todo_title").parent().addClass("has-error");
 
-        $.ajax({
-            type: "POST",
-            url: "/todos.json",
-            data: JSON.stringify({
-                todo: newTodo
-            }),
-            contentType: "application/json",
-            dataType: "json"
-        });
-    }
+  var errorElement = $("<small></small>")
+    .attr('id', 'error_message')
+    .addClass('error')
+    .html(message);
+
+  $(errorElement).appendTo('form');
+}
+
+function resetErrors() {
+  $("#error_message").remove();
+  $("#todo_title").removeClass("has-error");
 }
 
 function submitTodo(event) {
     event.preventDefault();
+    resetErrors();
     createTodo($("#todo_title").val());
     $("#todo_title").val(null);
     updateCounters();
 }
 
 function cleanUpDoneTodos(event) {
-    event.preventDefault();
-    $.when($(".success").remove())
-        .then(updateCounters);
+  event.preventDefault();
+
+  $.each($(".success"), function(index, tableRow) {
+    $tableRow = $(tableRow);
+    todoId = $(tableRow).data('id');
+    deleteTodo(todoId);
+  });
+}
+
+function deleteTodo(todoId) {
+  $.ajax({
+    type: "DELETE",
+    url: "/todos/" + todoId + ".json",
+    contentType: "application/json",
+    dataType: "json"})
+
+    .done(function(data) {
+      $('tr[data-id="'+todoId+'"]').remove();
+      updateCounters();
+    });
 }
 
 $(document).ready(function() {
